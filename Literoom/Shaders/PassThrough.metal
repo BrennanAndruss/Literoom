@@ -20,13 +20,14 @@ struct VertexOut
     float2 texCoord;
 };
 
-vertex VertexOut vertexPassThrough(const device Vertex* vertices [[buffer(0)]],
-                                   uint vertexID                 [[vertex_id]])
+vertex VertexOut vertexPassThrough(constant Vertex* vertices    [[ buffer(0) ]],
+                                   constant float2& scale       [[ buffer(1) ]],
+                                   uint vertexID                [[vertex_id]])
 {
     Vertex v = vertices[vertexID];
     
     VertexOut out;
-    out.position = float4(v.position, 0, 1);
+    out.position = float4(v.position * scale, 0.0, 1.0);
     out.texCoord = v.texCoord;
     return out;
 }

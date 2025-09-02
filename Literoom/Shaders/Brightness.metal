@@ -8,9 +8,9 @@
 #include <metal_stdlib>
 using namespace metal;
 
-kernel void brightness(texture2d<float, access::read> inTexture     [[texture(0)]],
-                       texture2d<float, access::write> outTexture   [[texture(1)]],
-                       constant float& brightness                   [[buffer(0)]],
+kernel void brightness(texture2d<float, access::read> inTexture     [[ texture(0) ]],
+                       texture2d<float, access::write> outTexture   [[ texture(1) ]],
+                       constant float& brightness                   [[ buffer(0) ]],
                        uint2 gid                                    [[thread_position_in_grid]])
 {
     // Don't read or write outside of the texture
