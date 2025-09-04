@@ -1,35 +1,35 @@
 //
-//  ContrastRenderer.swift
+//  SaturationRenderer.swift
 //  Literoom
 //
-//  Created by Brennan Andruss on 8/31/25.
+//  Created by Brennan Andruss on 9/1/25.
 //
 
 import Metal
 
-class ContrastRenderer: FilterRenderer {
+class SaturationRenderer: FilterRenderer {
     private let computePipelineState: MTLComputePipelineState!
-    private var contrast: Float = 0.0
+    private var saturation: Float = 0.0
     
-    required init(device: MTLDevice) {
+    required init(device: any MTLDevice) {
         let library = device.makeDefaultLibrary()!
-        let kernel = library.makeFunction(name: "contrast")!
+        let kernel = library.makeFunction(name: "saturation")!
         do {
             computePipelineState = try device.makeComputePipelineState(function: kernel)
         } catch {
-            fatalError("Unable to create contrast compute pipeline state")
+            fatalError("Unable to create saturation compute pipeline state")
         }
     }
     
-    func encode(commandBuffer: MTLCommandBuffer, inTexture: MTLTexture, outTexture: MTLTexture) {
+    func encode(commandBuffer: any MTLCommandBuffer, inTexture: any MTLTexture, outTexture: any MTLTexture) {
         // Configure compute pass
         guard let commandEncoder = commandBuffer.makeComputeCommandEncoder() else { return }
         
-        commandEncoder.label = "Contrast"
+        commandEncoder.label = "Saturation"
         commandEncoder.setComputePipelineState(computePipelineState)
         commandEncoder.setTexture(inTexture, index: 0)
         commandEncoder.setTexture(outTexture, index: 1)
-        commandEncoder.setBytes(&contrast, length: MemoryLayout<Float>.stride, index: 0)
+        commandEncoder.setBytes(&saturation, length: MemoryLayout<Float>.stride, index: 0)
         
         // Set up thread groups
         let w = computePipelineState.threadExecutionWidth
@@ -45,7 +45,7 @@ class ContrastRenderer: FilterRenderer {
         commandEncoder.endEncoding()
     }
     
-    func update(value contrast: Float) {
-        self.contrast = contrast
+    func update(value saturation: Float) {
+        self.saturation = saturation
     }
 }

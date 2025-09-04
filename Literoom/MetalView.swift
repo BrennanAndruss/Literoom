@@ -20,6 +20,7 @@ typealias ViewRepresentable = UIViewRepresentable
 struct MetalView: ViewRepresentable {
     let brightness: Float
     let contrast: Float
+    let saturation: Float
     let image: CGImage?
     
     func makeCoordinator() -> Renderer { Renderer(self) }
@@ -35,6 +36,7 @@ struct MetalView: ViewRepresentable {
     func updateUIView(_ uiView: MTKView, context: Context) {
         context.coordinator.setBrightness(brightness: brightness)
         context.coordinator.setContrast(contrast: contrast)
+        context.coordinator.setSaturation(saturation: saturation)
         
         guard let cgImage = image else {
             return
@@ -53,6 +55,7 @@ struct MetalView: ViewRepresentable {
     func updateNSView(_ nsView: MTKView, context: Context) {
         context.coordinator.setBrightness(brightness: brightness)
         context.coordinator.setContrast(contrast: contrast)
+        context.coordinator.setSaturation(saturation: saturation)
         
         guard let cgImage = image else {
             return
@@ -64,5 +67,10 @@ struct MetalView: ViewRepresentable {
 }
 
 #Preview {
-    MetalView(brightness: 0.0, contrast: 0.0, image: loadImage(named: "Image1"))
+    MetalView(
+        brightness: 0.0,
+        contrast: 0.0,
+        saturation: 1.0,
+        image: loadImage(named: "Image1")
+    )
 }

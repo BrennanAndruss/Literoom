@@ -21,7 +21,9 @@ class Renderer: NSObject, MTKViewDelegate {
     var commandQueue: MTLCommandQueue!
     var renderPipelineState: MTLRenderPipelineState!
     
-    var texture: MTLTexture?
+    var inTexture: MTLTexture?
+    var outTexture: MTLTexture!
+    var scratchTexture: MTLTexture!
     var textureAspect: Float = 1.0
     var viewAspect: Float = 1.0
     var scale: SIMD2<Float> = [1.0, 1.0]
@@ -29,8 +31,10 @@ class Renderer: NSObject, MTKViewDelegate {
     var vertexBuffer: MTLBuffer!
     var sampler: MTLSamplerState!
     
-    var brightnessRenderer: BrightnessRenderer?
-    var contrastRenderer: ContrastRenderer?
+    var filters: [FilterRenderer] = []
+    var brightnessRenderer: BrightnessRenderer!
+    var contrastRenderer: ContrastRenderer!
+    var saturationRenderer: SaturationRenderer!
     
     init(_ parent: MetalView) {
         self.parent = parent
@@ -85,17 +89,31 @@ class Renderer: NSObject, MTKViewDelegate {
         // Load filter renderers
         brightnessRenderer = BrightnessRenderer(device: device)
         contrastRenderer = ContrastRenderer(device: device)
+        saturationRenderer = SaturationRenderer(device: device)
+        
+        filters = [brightnessRenderer, contrastRenderer, saturationRenderer]
         
         // Load texture with sample image
         guard let cgImage = loadImage(named: "Image1") else {
             return
         }
         setTexture(cgImage: cgImage)
+        
+        // Create output texture and intermediate texture for ping-ponging
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .bgra8Unorm,
+            width: inTexture!.width,
+            height: inTexture!.height,
+            mipmapped: false
+        )
+        descriptor.usage = [.shaderRead, .shaderWrite]
+        outTexture = device.makeTexture(descriptor: descriptor)!
+        scratchTexture = device.makeTexture(descriptor: descriptor)!
     }
     
     func draw(in view: MTKView) {
         // Only draw if input texture and output drawable are present
-        guard let inTexture = texture,
+        guard let inTexture = inTexture,
               let renderPassDescriptor = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable else {
             return
@@ -106,41 +124,8 @@ class Renderer: NSObject, MTKViewDelegate {
             return
         }
         
-        // Create intermediate output textures for compute passes
-        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .bgra8Unorm,
-            width: inTexture.width,
-            height: inTexture.height,
-            mipmapped: false
-        )
-        descriptor.usage = [.shaderRead, .shaderWrite]
-        
-        guard let texA = device.makeTexture(descriptor: descriptor),
-              let texB = device.makeTexture(descriptor: descriptor),
-              let texC = device.makeTexture(descriptor: descriptor) else {
-            return
-        }
-        
-        // Copy image into texA
-        let blitEncoder = commandBuffer.makeBlitCommandEncoder()!
-        blitEncoder.copy(from: inTexture,
-                         sourceSlice: 0,
-                         sourceLevel: 0,
-                         sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
-                         sourceSize: MTLSize(width: inTexture.width, height: inTexture.height, depth: 1),
-                         to: texA,
-                         destinationSlice: 0,
-                         destinationLevel: 0,
-                         destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
-        blitEncoder.endEncoding()
-//        
-//        // Dispatch compute passes
-//        brightnessRenderer!.encode(commandBuffer: commandBuffer, inTexture: texA, outTexture: texB)
-//        contrastRenderer!.encode(commandBuffer: commandBuffer, inTexture: texB, outTexture: texA)
-//        let outTexture = texA
-        
-        brightnessRenderer!.encode(commandBuffer: commandBuffer, inTexture: texA, outTexture: texB)
-        contrastRenderer!.encode(commandBuffer: commandBuffer, inTexture: texB, outTexture: texC)
+        // Dispatch compute passes
+        applyFilters(commandBuffer: commandBuffer, inTexture: inTexture, outTexture: outTexture)
         
         // Run passthrough render pass for presentation
         let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
@@ -149,13 +134,26 @@ class Renderer: NSObject, MTKViewDelegate {
         renderEncoder.setRenderPipelineState(renderPipelineState)
         renderEncoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
         renderEncoder.setVertexBytes(&scale, length: MemoryLayout<SIMD2<Float>>.stride, index: 1)
-        renderEncoder.setFragmentTexture(texC, index: 0)
+        renderEncoder.setFragmentTexture(outTexture, index: 0)
         renderEncoder.setFragmentSamplerState(sampler, index: 0)
         renderEncoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
         renderEncoder.endEncoding()
         
         commandBuffer.present(drawable)
         commandBuffer.commit()
+    }
+    
+    func applyFilters(commandBuffer: MTLCommandBuffer, inTexture: MTLTexture, outTexture: MTLTexture) {
+        var src = inTexture
+        var dest = scratchTexture!
+        
+        for (i, filter) in filters.enumerated() {
+            if (i == filters.count - 1) {
+                dest = outTexture
+            }
+            filter.encode(commandBuffer: commandBuffer, inTexture: src, outTexture: dest)
+            swap(&src, &dest)
+        }
     }
     
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -178,8 +176,8 @@ class Renderer: NSObject, MTKViewDelegate {
     func setTexture(cgImage: CGImage) {
         let loader = MTKTextureLoader(device: device)
         do {
-            texture = try loader.newTexture(cgImage: cgImage, options: [.SRGB: false])
-            textureAspect = Float(texture!.width) / Float(texture!.height)
+            inTexture = try loader.newTexture(cgImage: cgImage, options: [.SRGB: false])
+            textureAspect = Float(inTexture!.width) / Float(inTexture!.height)
             updateScale()
         } catch {
             print("Failed to load Metal texture")
@@ -187,11 +185,15 @@ class Renderer: NSObject, MTKViewDelegate {
     }
     
     func setBrightness(brightness: Float) {
-        brightnessRenderer?.update(brightness: brightness)
+        brightnessRenderer?.update(value: brightness)
     }
     
     func setContrast(contrast: Float) {
-        contrastRenderer?.update(contrast: contrast)
+        contrastRenderer?.update(value: contrast)
+    }
+    
+    func setSaturation(saturation: Float) {
+        saturationRenderer?.update(value: saturation)
     }
 }
 

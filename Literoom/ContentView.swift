@@ -10,14 +10,22 @@ import SwiftUI
 struct ContentView: View {
     @State private var brightness: Float = 0.0
     @State private var contrast: Float = 0.0
+    @State private var saturation: Float = 1.0
     @State private var selectedImage: CGImage?
     
     var body: some View {
         VStack {
-            MetalView(brightness: brightness, contrast: contrast, image: selectedImage)
+            MetalView(
+                brightness: brightness,
+                contrast: contrast,
+                saturation: saturation,
+                image: selectedImage
+            )
             Slider(value: $brightness, in: -0.5...0.5)
                 .padding()
             Slider(value: $contrast, in: -0.5...0.5)
+                .padding()
+            Slider(value: $saturation, in:-1.0...1.0)
                 .padding()
         }
     }

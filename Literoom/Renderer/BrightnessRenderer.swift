@@ -45,7 +45,7 @@ class BrightnessRenderer: FilterRenderer {
         commandEncoder.endEncoding()
     }
     
-    func update(brightness: Float) {
+    func update(value brightness: Float) {
         self.brightness = brightness
     }
 }
