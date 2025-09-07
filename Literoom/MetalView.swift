@@ -21,6 +21,7 @@ struct MetalView: ViewRepresentable {
     let brightness: Float
     let contrast: Float
     let saturation: Float
+    let blur: Float
     let image: CGImage?
     
     func makeCoordinator() -> Renderer { Renderer(self) }
@@ -37,6 +38,7 @@ struct MetalView: ViewRepresentable {
         context.coordinator.setBrightness(brightness: brightness)
         context.coordinator.setContrast(contrast: contrast)
         context.coordinator.setSaturation(saturation: saturation)
+        context.coordinator.setBlur(radius: blur)
         
         guard let cgImage = image else {
             return
@@ -56,6 +58,7 @@ struct MetalView: ViewRepresentable {
         context.coordinator.setBrightness(brightness: brightness)
         context.coordinator.setContrast(contrast: contrast)
         context.coordinator.setSaturation(saturation: saturation)
+        context.coordinator.setBlur(radius: blur)
         
         guard let cgImage = image else {
             return
@@ -71,6 +74,7 @@ struct MetalView: ViewRepresentable {
         brightness: 0.0,
         contrast: 0.0,
         saturation: 1.0,
+        blur: 0.0,
         image: loadImage(named: "Image1")
     )
 }

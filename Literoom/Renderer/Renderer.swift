@@ -23,7 +23,10 @@ class Renderer: NSObject, MTKViewDelegate {
     
     var inTexture: MTLTexture?
     var outTexture: MTLTexture!
-    var scratchTexture: MTLTexture!
+    var scratchA: MTLTexture!
+    var scratchB: MTLTexture!
+    var dirtyFlag: Bool = true
+    
     var textureAspect: Float = 1.0
     var viewAspect: Float = 1.0
     var scale: SIMD2<Float> = [1.0, 1.0]
@@ -35,6 +38,7 @@ class Renderer: NSObject, MTKViewDelegate {
     var brightnessRenderer: BrightnessRenderer!
     var contrastRenderer: ContrastRenderer!
     var saturationRenderer: SaturationRenderer!
+    var blurRenderer: BlurRenderer!
     
     init(_ parent: MetalView) {
         self.parent = parent
@@ -90,8 +94,9 @@ class Renderer: NSObject, MTKViewDelegate {
         brightnessRenderer = BrightnessRenderer(device: device)
         contrastRenderer = ContrastRenderer(device: device)
         saturationRenderer = SaturationRenderer(device: device)
+        blurRenderer = BlurRenderer(device: device)
         
-        filters = [brightnessRenderer, contrastRenderer, saturationRenderer]
+        filters = [brightnessRenderer, contrastRenderer, saturationRenderer, blurRenderer]
         
         // Load texture with sample image
         guard let cgImage = loadImage(named: "Image1") else {
@@ -108,7 +113,8 @@ class Renderer: NSObject, MTKViewDelegate {
         )
         descriptor.usage = [.shaderRead, .shaderWrite]
         outTexture = device.makeTexture(descriptor: descriptor)!
-        scratchTexture = device.makeTexture(descriptor: descriptor)!
+        scratchA = device.makeTexture(descriptor: descriptor)!
+        scratchB = device.makeTexture(descriptor: descriptor)!
     }
     
     func draw(in view: MTKView) {
@@ -124,8 +130,11 @@ class Renderer: NSObject, MTKViewDelegate {
             return
         }
         
-        // Dispatch compute passes
-        applyFilters(commandBuffer: commandBuffer, inTexture: inTexture, outTexture: outTexture)
+        // Apply filters when parameters are modified
+        if dirtyFlag {
+            applyFilters(commandBuffer: commandBuffer, inTexture: inTexture, outTexture: outTexture)
+            dirtyFlag = false
+        }
         
         // Run passthrough render pass for presentation
         let renderEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)!
@@ -145,14 +154,19 @@ class Renderer: NSObject, MTKViewDelegate {
     
     func applyFilters(commandBuffer: MTLCommandBuffer, inTexture: MTLTexture, outTexture: MTLTexture) {
         var src = inTexture
-        var dest = scratchTexture!
+        var dest = scratchA!
         
         for (i, filter) in filters.enumerated() {
+            // Write into the outTexture on the last filter
             if (i == filters.count - 1) {
                 dest = outTexture
+            } else {
+                // Alternate between scratch textures for intermediate outputs
+                dest = (i % 2 == 0) ? scratchA! : scratchB!
             }
+            
             filter.encode(commandBuffer: commandBuffer, inTexture: src, outTexture: dest)
-            swap(&src, &dest)
+            src = dest
         }
     }
     
@@ -186,14 +200,22 @@ class Renderer: NSObject, MTKViewDelegate {
     
     func setBrightness(brightness: Float) {
         brightnessRenderer?.update(value: brightness)
+        dirtyFlag = true
     }
     
     func setContrast(contrast: Float) {
         contrastRenderer?.update(value: contrast)
+        dirtyFlag = true
     }
     
     func setSaturation(saturation: Float) {
         saturationRenderer?.update(value: saturation)
+        dirtyFlag = true
+    }
+    
+    func setBlur(radius: Float) {
+        blurRenderer?.update(value: radius)
+        dirtyFlag = true
     }
 }
 
