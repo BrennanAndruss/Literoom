@@ -74,7 +74,7 @@ struct MetalView: ViewRepresentable {
         brightness: 0.0,
         contrast: 0.0,
         saturation: 1.0,
-        blur: 0.0,
+        blur: 1.0,
         image: loadImage(named: "Image1")
     )
 }

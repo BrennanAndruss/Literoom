@@ -95,6 +95,7 @@ class Renderer: NSObject, MTKViewDelegate {
         contrastRenderer = ContrastRenderer(device: device)
         saturationRenderer = SaturationRenderer(device: device)
         blurRenderer = BlurRenderer(device: device)
+        blurRenderer.configureResources(device: device, inTexture: inTexture)
         
         filters = [brightnessRenderer, contrastRenderer, saturationRenderer, blurRenderer]
         
@@ -176,7 +177,7 @@ class Renderer: NSObject, MTKViewDelegate {
     }
     
     func updateScale() {
-        // Scale the quad fit the image inside the drawable, maintaining aspect ratio
+        // Scale the quad to fit the image inside the drawable, maintaining aspect ratio
         scale = [1.0, 1.0]
         if textureAspect > viewAspect {
             // Image wider than view -> scale Y
@@ -193,6 +194,9 @@ class Renderer: NSObject, MTKViewDelegate {
             inTexture = try loader.newTexture(cgImage: cgImage, options: [.SRGB: false])
             textureAspect = Float(inTexture!.width) / Float(inTexture!.height)
             updateScale()
+            
+            // Update resources for multi-pass filter renderers using their own intermediate textures
+            blurRenderer.configureResources(device: device, inTexture: inTexture)
         } catch {
             print("Failed to load Metal texture")
         }
