@@ -2,6 +2,8 @@
 
 An image editing application made with Metal and SwiftUI. This project was built as my introduction to compute shaders and pipelines, as well as to learn image processing techniques.
 
+![Literoom](./images/Literoom-Landscape.gif)
+
 ## 📝 Features
 
 - A compute pipeline supporting modular filters for image adjustments, including brightness, contrast, saturation, and Gaussian blur
